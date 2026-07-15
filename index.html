@@ -154,7 +154,11 @@ const SAMPLES = [
 ];
 
 /* ---------- tuning ---------- */
-const SEG        = 12;     // px between chain points
+// phones get fewer, chunkier strands and coarser chains — over half the
+// physics points and draw calls disappear, the look barely changes
+const MOBILE = matchMedia("(pointer: coarse)").matches ||
+               Math.min(window.innerWidth, window.innerHeight) < 500;
+const SEG        = MOBILE ? 16 : 12;   // px between chain points
 const ITER       = 3;      // constraint relaxation passes
 const FEED_SECS  = 38;     // full shred duration
 const PREROLL_X  = 2.6;    // preroll speed multiplier
@@ -178,7 +182,7 @@ const CURL       = 260;    // blade-curl accel on free tails
 const PILE_MAX   = 150;    // max pile height px
 const DT         = 1/60;
 
-const TARGET_STRIP_W = 8;  // fine cut — Thomas's pick
+const TARGET_STRIP_W = MOBILE ? 13 : 8;  // fine cut — Thomas's pick (coarser on phones)
 
 const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const swayScale = reduceMotion ? 0 : 1;
@@ -191,12 +195,15 @@ let W = 0, H = 0, dpr = 1;
 let cutY = 0, floorY = 0;
 
 function resize(){
-  dpr = Math.min(2, window.devicePixelRatio || 1);
+  dpr = Math.min(MOBILE ? 1.75 : 2, window.devicePixelRatio || 1);
   W = window.innerWidth; H = window.innerHeight;
   cv.width = Math.round(W*dpr); cv.height = Math.round(H*dpr);
   cutY = Math.round(H*0.30);
   floorY = H - 6;
   pileResize();
+  // if the layout was built while the viewport reported a degenerate size
+  // (mid-rotation, restoring tab), rebuild it now that we have real numbers
+  if(src && sheetW < 20 && W > 100) restart();
 }
 
 /* ---------- pile heightfield ---------- */
@@ -625,12 +632,14 @@ function draw(g = ctx, scale = dpr){
   g.save();
   g.strokeStyle = "rgba(17,20,24,0.045)";
   g.lineCap = "butt"; g.lineJoin = "round";
+  const stride = MOBILE ? 2 : 1;   // shadows don't need every joint
   for(const s of strips){
     if(s.pts.length < 2) continue;
     g.lineWidth = s.w;
     g.beginPath();
     g.moveTo(s.pts[0].x + 4, s.pts[0].y + 6);
-    for(let i=1;i<s.pts.length;i++) g.lineTo(s.pts[i].x + 4, s.pts[i].y + 6);
+    for(let i=stride;i<s.pts.length;i+=stride) g.lineTo(s.pts[i].x + 4, s.pts[i].y + 6);
+    g.lineTo(s.pts[s.pts.length-1].x + 4, s.pts[s.pts.length-1].y + 6);
     g.stroke();
   }
   g.restore();
@@ -959,9 +968,10 @@ let last = performance.now(), acc = 0;
 function frame(now){
   acc += Math.min(0.1, (now - last)/1000);
   last = now;
+  const maxSteps = MOBILE ? 2 : 3;
   let steps = 0;
-  while(acc >= DT && steps < 3){ step(); acc -= DT; steps++; }
-  if(steps === 3) acc = 0;
+  while(acc >= DT && steps < maxSteps){ step(); acc -= DT; steps++; }
+  if(steps === maxSteps) acc = 0;
   draw();
   updateHUD();
   updateStopTip();
