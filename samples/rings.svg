@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="1200" viewBox="0 0 900 1200">
+  <!-- placeholder sample artwork — swap for Thomas's own images -->
+  <rect width="900" height="1200" fill="#111418"/>
+  <g fill="none" stroke-linecap="round">
+    <circle cx="380" cy="520" r="460" stroke="#fbfbf9" stroke-width="26"/>
+    <circle cx="380" cy="520" r="400" stroke="#e4572e" stroke-width="44"/>
+    <circle cx="380" cy="520" r="330" stroke="#fbfbf9" stroke-width="14"/>
+    <circle cx="380" cy="520" r="286" stroke="#e4572e" stroke-width="10"/>
+    <circle cx="380" cy="520" r="240" stroke="#fbfbf9" stroke-width="52"/>
+    <circle cx="380" cy="520" r="170" stroke="#e4572e" stroke-width="22"/>
+    <circle cx="380" cy="520" r="120" stroke="#fbfbf9" stroke-width="30"/>
+    <circle cx="380" cy="520" r="66" stroke="#e4572e" stroke-width="34"/>
+    <circle cx="620" cy="1010" r="150" stroke="#fbfbf9" stroke-width="18"/>
+    <circle cx="620" cy="1010" r="104" stroke="#e4572e" stroke-width="26"/>
+    <circle cx="620" cy="1010" r="52" stroke="#fbfbf9" stroke-width="40"/>
+  </g>
+  <circle cx="380" cy="520" r="26" fill="#fbfbf9"/>
+</svg>

@@ -1,0 +1,1013 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Shreader</title>
+<style>
+:root{
+  --ink:#111418;
+  --bg:#fbfbf9;
+  --accent:#e4572e;
+  --muted:#8a9099;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{height:100%;overflow:hidden;background:var(--bg);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+  -webkit-font-smoothing:antialiased;}
+#c{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:default;}
+
+/* progress bar */
+#bar{position:fixed;top:0;left:0;height:3px;width:0%;background:var(--accent);z-index:20;
+  transition:width .12s linear;}
+
+/* HUD */
+#hud{position:fixed;top:0;left:0;right:0;padding:16px 20px;display:flex;
+  justify-content:space-between;align-items:baseline;z-index:10;pointer-events:none;
+  text-shadow:0 1px 0 var(--bg),0 0 8px var(--bg),0 0 3px var(--bg);}
+#hudTitle{font-size:15px;font-weight:700;color:var(--ink);}
+#hudTitle span{font-weight:400;color:var(--muted);}
+#credit{position:fixed;left:20px;bottom:26px;font-size:11px;color:var(--muted);
+  z-index:10;pointer-events:none;
+  text-shadow:0 1px 0 var(--bg),0 0 8px var(--bg),0 0 3px var(--bg);}
+
+/* cursor tip over the sheet */
+#stopTip{position:fixed;z-index:12;pointer-events:none;background:var(--ink);color:#fff;
+  font-size:12px;font-weight:600;border-radius:999px;padding:5px 11px;
+  opacity:0;transition:opacity .15s;white-space:nowrap;}
+#stopTip.show{opacity:1;}
+#counter{font-size:14px;font-weight:600;color:var(--muted);
+  font-variant-numeric:tabular-nums;white-space:nowrap;}
+
+/* hint */
+#hint{position:fixed;left:0;right:0;bottom:26px;text-align:center;font-size:13px;
+  color:var(--muted);z-index:10;pointer-events:none;opacity:0;transition:opacity .6s;}
+#hint.show{opacity:1;}
+
+/* toast */
+#toast{position:fixed;left:50%;bottom:70px;transform:translateX(-50%);
+  background:var(--ink);color:#fff;font-size:13px;font-weight:600;
+  border-radius:999px;padding:9px 18px;z-index:15;pointer-events:none;
+  opacity:0;transition:opacity .5s;white-space:nowrap;}
+#toast.show{opacity:1;}
+
+/* pill buttons */
+#pills{position:fixed;right:20px;bottom:20px;display:flex;gap:8px;z-index:30;}
+.pill{font-size:13px;font-weight:600;color:var(--ink);background:#fff;
+  border:1px solid #d7dbe0;border-radius:999px;padding:7px 14px;cursor:pointer;
+  box-shadow:0 1px 2px rgba(0,0,0,.05);font-family:inherit;}
+.pill:hover{border-color:var(--accent);color:var(--accent);}
+.pill.on{border-color:var(--accent);color:var(--accent);}
+.pill.hidden{display:none;}
+
+/* popover */
+#pop{position:fixed;right:20px;bottom:64px;background:#fff;border:1px solid #d7dbe0;
+  border-radius:14px;padding:10px;box-shadow:0 8px 28px rgba(0,0,0,.12);
+  max-height:65vh;overflow:auto;min-width:240px;max-width:calc(100vw - 40px);
+  z-index:31;display:none;}
+#pop.open{display:block;}
+#pop .label{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;
+  letter-spacing:.06em;padding:4px 8px 8px;}
+.row{display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:10px;
+  cursor:pointer;}
+.row:hover{background:#f2f4f6;}
+.row.current{outline:2px solid var(--accent);}
+.row img{width:34px;height:46px;border-radius:4px;object-fit:cover;background:#e8ebee;}
+.row .tile{width:34px;height:46px;border-radius:4px;background:#e8ebee;display:flex;
+  align-items:center;justify-content:center;font-size:15px;font-weight:700;color:var(--muted);}
+.row .t{font-size:13px;font-weight:700;color:var(--ink);}
+.row .s{font-size:11px;color:var(--muted);}
+#upl{display:none;}
+
+/* camera pane */
+.paneBtns{display:flex;gap:8px;padding:8px;}
+.pill.accent{border-color:var(--accent);color:var(--accent);}
+#camVid{width:248px;aspect-ratio:3/4;object-fit:cover;transform:scaleX(-1);
+  border-radius:10px;background:#e8ebee;display:block;margin:0 8px;}
+
+/* drag-drop overlay */
+#drop{position:fixed;inset:14px;border:2px dashed var(--accent);border-radius:18px;
+  background:rgba(251,251,249,.85);z-index:40;display:none;align-items:center;
+  justify-content:center;font-size:14px;font-weight:600;color:var(--accent);
+  pointer-events:none;}
+#drop.show{display:flex;}
+
+@media (max-width:600px){
+  #hudTitle span{display:none;}
+  #credit{display:none;}
+}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="bar"></div>
+<div id="hud">
+  <div id="hudTitle">Shreader <span id="sub">· feeding</span></div>
+  <div id="counter">0% shredded</div>
+</div>
+<div id="credit">an experiment · by Thomas Pavitte</div>
+<div id="stopTip">stop the shreader</div>
+<div id="hint"></div>
+<div id="toast"></div>
+<div id="pills">
+  <button class="pill hidden" id="btnAgain">Again</button>
+  <button class="pill" id="btnSave">Save</button>
+  <button class="pill" id="btnSound">Sound</button>
+  <button class="pill" id="btnImage">Image</button>
+</div>
+<div id="pop">
+  <div id="paneMain">
+    <div class="label">Images</div>
+    <div id="popList"></div>
+    <div class="row" id="rowCam">
+      <div class="tile">◉</div>
+      <div><div class="t">Camera…</div><div class="s">shred a selfie</div></div>
+    </div>
+    <div class="row" id="rowUpload">
+      <div class="tile">+</div>
+      <div><div class="t">Upload an image…</div><div class="s">or drop one anywhere</div></div>
+    </div>
+  </div>
+  <div id="paneCam" hidden>
+    <div class="label">Camera</div>
+    <video id="camVid" autoplay playsinline muted></video>
+    <div class="paneBtns">
+      <button class="pill accent" id="camShred">Shred it</button>
+      <button class="pill" id="camBack">Cancel</button>
+    </div>
+  </div>
+  <input type="file" id="upl" accept="image/*">
+</div>
+<div id="drop">drop an image to shred it</div>
+
+<script>
+"use strict";
+/* ============================================================
+   Shreader — an image feeds through an invisible shredder.
+   Strips are verlet chains textured with slices of the image.
+   ============================================================ */
+
+const SAMPLES = [
+  { id:"rings", name:"Rings",  file:"samples/rings.svg" },
+  { id:"sun",   name:"Sun",    file:"samples/sun.svg"   },
+  { id:"arcs",  name:"Arcs",   file:"samples/arcs.svg"  },
+];
+
+/* ---------- tuning ---------- */
+const SEG        = 12;     // px between chain points
+const ITER       = 3;      // constraint relaxation passes
+const FEED_SECS  = 38;     // full shred duration
+const PREROLL_X  = 2.6;    // preroll speed multiplier
+const GRAV       = 1500;   // px/s^2
+const DAMP_HANG  = 0.992;  // velocity keep per step, attached
+const DAMP_FALLX = 0.97;
+const DAMP_FALLY = 0.93;   // heavy vertical drag = papery terminal velocity
+const STIFF      = 0.55;   // second-neighbour straightness
+const BENDS      = [[2, STIFF, 0.996], [4, 0.35, 0.98]]; // [span, stiffness, slack]
+const SWAY       = 16;     // ambient sway accel
+const FLUT_A     = 130;    // flutter drift accel
+const FLUT_R     = 420;    // flutter rocking accel
+const CURSOR_R   = 100;    // hand radius
+const CURSOR_K   = 9;      // hand strength
+const GRAB_R     = 16;     // pinch radius for grabbing a strip
+const SNAP_HARD  = 1.45;   // tension 45% past its at-grab baseline → instant tear
+const SNAP_SOFT  = 1.22;   // 22% past baseline, held ~12 frames → tear
+const BLOW_R     = 170;    // gust radius
+const BLOW_F     = 1600;   // gust strength
+const CURL       = 260;    // blade-curl accel on free tails
+const PILE_MAX   = 150;    // max pile height px
+const DT         = 1/60;
+
+const TARGET_STRIP_W = 8;  // fine cut — Thomas's pick
+
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const swayScale = reduceMotion ? 0 : 1;
+const flutScale = reduceMotion ? 0.25 : 1;
+
+/* ---------- canvas ---------- */
+const cv = document.getElementById("c");
+const ctx = cv.getContext("2d");
+let W = 0, H = 0, dpr = 1;
+let cutY = 0, floorY = 0;
+
+function resize(){
+  dpr = Math.min(2, window.devicePixelRatio || 1);
+  W = window.innerWidth; H = window.innerHeight;
+  cv.width = Math.round(W*dpr); cv.height = Math.round(H*dpr);
+  cutY = Math.round(H*0.30);
+  floorY = H - 6;
+  pileResize();
+}
+
+/* ---------- pile heightfield ---------- */
+const PILE_BUCKET = 12;
+let pile = new Float32Array(1);
+function pileResize(){
+  const n = Math.ceil(W/PILE_BUCKET)+1;
+  const p = new Float32Array(n);
+  for(let i=0;i<n;i++) p[i] = pile[Math.min(i, pile.length-1)] || 0;
+  pile = p;
+}
+function pileAt(x){
+  // linear interpolation between buckets — stepped floors make resting
+  // strips oscillate forever against the bend constraints
+  const f = Math.max(0, Math.min(pile.length-1.001, x/PILE_BUCKET));
+  const i = Math.floor(f);
+  return pile[i] + (pile[i+1] - pile[i])*(f - i);
+}
+function pileDeposit(strip){
+  for(const p of strip.pts){
+    const b = Math.max(0, Math.min(pile.length-1, Math.round(p.x/PILE_BUCKET)));
+    pile[b] = Math.min(PILE_MAX, pile[b] + 1.6);
+  }
+  // smooth so the heap mounds instead of spiking
+  for(let k=0;k<2;k++)
+    for(let i=1;i<pile.length-1;i++)
+      pile[i] = (pile[i-1]+pile[i]*2+pile[i+1])/4;
+}
+
+/* ---------- state ---------- */
+let src = null;          // offscreen source canvas
+let srcName = "";
+let currentId = null;    // sample id or null for uploads
+let sheetW=0, sheetH=0, sheetX=0;
+let strips = [];
+let fed = 0;             // display px of sheet that has passed the cutter
+let preY = 0;            // sheet bottom y during preroll
+let phase = "preroll";   // preroll | shred | done
+let motorOn = true;
+let feedRate = 0;
+let doneAt = 0;          // time the last strip finished feeding
+let t = 0;               // sim clock
+
+/* ---------- paper grain (baked into the source once) ---------- */
+const grainTex = (() => {
+  const c = document.createElement("canvas");
+  c.width = c.height = 128;
+  const g = c.getContext("2d");
+  const im = g.createImageData(128, 128);
+  for(let i=0;i<im.data.length;i+=4){
+    const v = 110 + (Math.random()*90|0);
+    im.data[i] = im.data[i+1] = im.data[i+2] = v;
+    im.data[i+3] = 255;
+  }
+  g.putImageData(im, 0, 0);
+  return c;
+})();
+
+/* ---------- image loading ---------- */
+function loadImage(url, name, id){
+  const img = new Image();
+  img.onload = () => build(img, name, id);
+  img.onerror = () => toastMsg("couldn't read that image", 2400);
+  img.src = url;
+}
+function build(img, name, id){
+  // cap source resolution
+  const cap = 1600;
+  const s = Math.min(1, cap/Math.max(img.naturalWidth, img.naturalHeight));
+  const sw = Math.max(2, Math.round(img.naturalWidth*s));
+  const sh = Math.max(2, Math.round(img.naturalHeight*s));
+  src = document.createElement("canvas");
+  src.width = sw; src.height = sh;
+  const g = src.getContext("2d");
+  g.fillStyle = "#fdfdfb"; g.fillRect(0,0,sw,sh);   // paper behind transparency
+  g.drawImage(img, 0, 0, sw, sh);
+  // whisper of paper grain, inherited by sheet, strips and exports alike
+  g.globalAlpha = 0.06;
+  g.globalCompositeOperation = "soft-light";
+  for(let y=0;y<sh;y+=128) for(let x=0;x<sw;x+=128) g.drawImage(grainTex, x, y);
+  g.globalAlpha = 1;
+  g.globalCompositeOperation = "source-over";
+  srcName = name; currentId = id || null;
+  restart();
+  refreshPopover();
+}
+
+/* ---------- shred setup ---------- */
+function restart(){
+  if(!src) return;
+  const ar = src.width/src.height;
+  sheetW = Math.min(0.72*W, 0.62*H*ar, 900);
+  sheetH = sheetW/ar;
+  sheetX = (W - sheetW)/2;
+  feedRate = sheetH / FEED_SECS;
+
+  const n = Math.max(6, Math.min(90, Math.round(sheetW/TARGET_STRIP_W)));
+  const stripW = sheetW/n;
+  strips = [];
+  for(let i=0;i<n;i++){
+    // per-strip texture: image slice + baked white cut edges
+    const texW = Math.max(2, Math.ceil(stripW*dpr));
+    const texH = Math.max(2, Math.ceil(sheetH*dpr));
+    const tex = document.createElement("canvas");
+    tex.width = texW; tex.height = texH;
+    const g = tex.getContext("2d");
+    const sx = i*src.width/n, sw = src.width/n;
+    g.drawImage(src, sx, 0, sw, src.height, 0, 0, texW, texH);
+    g.fillStyle = "rgba(250,249,245,0.9)";
+    const e = Math.max(1, Math.round(dpr));
+    g.fillRect(0,0,e,texH); g.fillRect(texW-e,0,e,texH);
+
+    strips.push({
+      x0: sheetX + (i+0.5)*stripW,
+      w: stripW,
+      tex, texScale: texH/sheetH,
+      pts: [],                      // bottom tip … top (last = pinned while attached)
+      attached: true,
+      asleep: false,
+      deposited: false,
+      settleT: 0,
+      detachDelay: Math.random()*0.6,
+      phase: Math.random()*Math.PI*2,
+      ff: 1.6 + Math.random()*1.4,  // flutter frequency
+      curl: (Math.random()<0.5?-1:1)*(0.5+Math.random()*0.5), // signed blade-curl bias
+      mBase: 0,                     // material already torn off this column
+    });
+  }
+  fed = 0;
+  preY = -10;
+  grab = null;
+  phase = "preroll";
+  motorOn = true;
+  doneAt = 0;
+  pile = new Float32Array(pile.length);   // fresh floor
+  btnAgain.classList.add("hidden");
+  toastEl.classList.remove("show");
+  setHint("click to stop the machine · sweep, grab, or hold to blow");
+  updateHUD();
+}
+
+/* ---------- points ---------- */
+function mkPt(x, y, m){
+  return { x, y, px: x, py: y, m };
+}
+
+// keep the pinned point at the cutter and grow the chain as paper feeds
+function emit(s){
+  if(!s.attached) return;
+  if(s.pts.length === 0){
+    s.pts.push(mkPt(s.x0, cutY, fed));   // the pin
+    return;
+  }
+  const pin = s.pts[s.pts.length-1];
+  pin.m = fed;
+  for(let guard=0; guard<200; guard++){
+    const below = s.pts.length > 1 ? s.pts[s.pts.length-2] : null;
+    if(!below){
+      if(fed - s.mBase < 0.5) break;
+      // bottom tip of the (possibly re-grown) strip emerges
+      s.pts.splice(s.pts.length-1, 0, mkPt(s.x0, cutY + (fed - s.mBase), s.mBase));
+      continue;
+    }
+    if(fed - below.m < SEG) break;
+    const newM = below.m + SEG;
+    const span = Math.max(0.001, fed - below.m);
+    const f = (fed - newM)/span;             // 0 = at pin, 1 = at below
+    s.pts.splice(s.pts.length-1, 0, mkPt(
+      pin.x + (below.x - pin.x)*f,
+      pin.y + (below.y - pin.y)*f,
+      newM
+    ));
+  }
+}
+
+/* ---------- pointer ---------- */
+const ptr = { x:-9999, y:-9999, vx:0, vy:0, active:false };
+let lastPX = 0, lastPY = 0, hasP = false;
+let grab = null;        // {s, i, dx, dy} — strip point pinched by the cursor
+let pressed = false, blowing = false, downT = 0;
+let tearT = 0;          // frames the grabbed strip has been over soft-tear strain
+
+// a grabbed strip pulled past its breaking point snaps off at the slot;
+// the torn piece stays in the hand and the column re-grows from the cutter
+function tearStrip(s){
+  const frag = {
+    x0: s.x0, w: s.w, tex: s.tex, texScale: s.texScale,
+    pts: s.pts,
+    attached: false, asleep: false, deposited: false, settleT: 0,
+    detachDelay: 0,
+    phase: s.phase, ff: s.ff, curl: s.curl,
+  };
+  strips.push(frag);
+  if(grab && grab.s === s) grab.s = frag;   // still pinched in the hand
+  s.pts = [];
+  s.mBase = fed;
+  tearT = 0;
+}
+
+function hitStrip(x, y, r){
+  let best = null, bd = r*r;
+  for(const s of strips){
+    const n = s.pts.length;
+    for(let i=0;i<n;i++){
+      if(s.attached && i === n-1) continue;   // never grab the machine's pin
+      const p = s.pts[i];
+      const dx = p.x - x, dy = p.y - y, d2 = dx*dx + dy*dy;
+      if(d2 < bd){ bd = d2; best = { s, i, dx, dy }; }
+    }
+  }
+  return best;
+}
+function pointerFrame(){
+  if(hasP){
+    const nvx = (ptr.x - lastPX)/DT, nvy = (ptr.y - lastPY)/DT;
+    ptr.vx += (nvx - ptr.vx)*0.5;
+    ptr.vy += (nvy - ptr.vy)*0.5;
+  }
+  lastPX = ptr.x; lastPY = ptr.y; hasP = ptr.active;
+  const cap = 3200, sp = Math.hypot(ptr.vx, ptr.vy);
+  if(sp > cap){ ptr.vx *= cap/sp; ptr.vy *= cap/sp; }
+}
+
+/* ---------- simulation ---------- */
+function step(){
+  t += DT;
+  pointerFrame();
+  blowing = pressed && !grab && (performance.now() - downT) > 180;
+
+  // feed
+  if(motorOn && phase === "preroll"){
+    preY += feedRate*PREROLL_X*DT;
+    if(preY >= cutY){ preY = cutY; phase = "shred"; }
+  } else if(motorOn && phase === "shred"){
+    fed = Math.min(sheetH, fed + feedRate*DT);
+    if(fed >= sheetH){ phase = "done"; doneAt = t; onShredDone(); }
+  }
+
+  const ptrFast = Math.hypot(ptr.vx, ptr.vy) > 220;
+
+  for(const s of strips){
+    if(phase !== "preroll" && s.attached) emit(s);
+
+    // release, rippling across the strips
+    if(phase === "done" && s.attached && t - doneAt > s.detachDelay){
+      s.attached = false;
+    }
+
+    if(s.asleep){
+      // wake if the hand sweeps near or a gust reaches it
+      if((ptrFast || blowing) && nearStrip(s, ptr.x, ptr.y, blowing ? BLOW_R : 120)){
+        s.asleep = false; s.settleT = 0;
+      } else continue;
+    }
+
+    const n = s.pts.length;
+    if(n === 0) continue;
+
+    const att = s.attached;
+    // long after the shred finishes, the air thickens so stragglers
+    // resting awkwardly on the pile stop jittering and fall asleep
+    const tired = !att && phase === "done" && t - doneAt > 18 ? 0.96 : 1;
+    const dampX = (att ? DAMP_HANG : DAMP_FALLX)*tired;
+    const dampY = (att ? DAMP_HANG : DAMP_FALLY)*tired;
+
+    // integrate
+    for(let i=0;i<n;i++){
+      const p = s.pts[i];
+      if(att && i === n-1){ p.x = s.x0; p.y = cutY; p.px = p.x; p.py = p.y; continue; }
+      if(grab && grab.s === s && grab.i === i){
+        // pinched point follows the cursor (elastic grip via constraints)
+        p.px = p.x; p.py = p.y;
+        p.x = ptr.x + grab.dx; p.y = ptr.y + grab.dy;
+        continue;
+      }
+
+      let ax = 0, ay = 0, air = 1;
+      if(att){
+        ax += SWAY*swayScale*Math.sin(t*1.1 + s.phase + i*0.22)
+            +  8*swayScale*Math.sin(t*0.37 + s.phase*3);
+      } else {
+        // flutter fades out as a point nears the floor, so strips can rest
+        air = Math.min(1, Math.max(0, (floorY - pileAt(p.x) - p.y)/70));
+        if(air > 0){
+          ax += FLUT_A*flutScale*air*Math.sin(t*s.ff + s.phase);
+          ax += FLUT_R*flutScale*air*Math.sin(t*s.ff*1.7 + s.phase*2) * ((i/Math.max(1,n-1)) - 0.5)*2;
+          ay += 200*flutScale*air*Math.sin(t*s.ff*0.9 + s.phase);
+        }
+      }
+
+      // blade curl: free tails bend gently to a consistent side per strip
+      if((!att && air > 0) || (att && i < 8)){
+        const q = s.pts[Math.min(i+1, n-1)];
+        const cdx = q.x - p.x, cdy = q.y - p.y;
+        const cl = Math.hypot(cdx, cdy) || 1;
+        const ck = CURL*flutScale*s.curl*(att ? 1 : air);
+        ax += (cdy/cl)*ck;
+        ay += (-cdx/cl)*ck;
+      }
+
+      // gust: hold the button to blow through the paper
+      if(blowing){
+        const bdx = p.x - ptr.x, bdy = p.y - ptr.y;
+        const bd2 = bdx*bdx + bdy*bdy;
+        if(bd2 < BLOW_R*BLOW_R){
+          const bd = Math.sqrt(bd2) || 1;
+          const bf = (1 - bd/BLOW_R)*BLOW_F;
+          ax += (bdx/bd)*bf + Math.sin(t*13 + p.y*0.05 + p.x*0.03)*bf*0.5;
+          ay += (bdy/bd)*bf*0.4 - bf*0.8;
+        }
+      }
+
+      // the hand
+      const dx = p.x - ptr.x, dy = p.y - ptr.y;
+      const d2 = dx*dx + dy*dy;
+      if(ptr.active && d2 < CURSOR_R*CURSOR_R){
+        const fall = 1 - Math.sqrt(d2)/CURSOR_R;
+        ax += ptr.vx*CURSOR_K*fall;
+        ay += ptr.vy*CURSOR_K*fall*0.6;
+      }
+
+      const vx = (p.x - p.px)*dampX;
+      const vy = (p.y - p.py)*dampY;
+      p.px = p.x; p.py = p.y;
+      p.x += vx + ax*DT*DT;
+      p.y += vy + (GRAV + ay)*DT*DT;
+    }
+
+    // constraints
+    for(let k=0;k<ITER;k++){
+      for(let i=0;i<n-1;i++){
+        const a = s.pts[i], b = s.pts[i+1];
+        const rest = b.m - a.m;
+        let dx = b.x - a.x, dy = b.y - a.y;
+        let d = Math.hypot(dx, dy) || 0.0001;
+        const diff = (d - rest)/d;
+        const bPinned = att && i+1 === n-1;
+        if(bPinned){ a.x += dx*diff; a.y += dy*diff; }
+        else { a.x += dx*diff*0.5; a.y += dy*diff*0.5;
+               b.x -= dx*diff*0.5; b.y -= dy*diff*0.5; }
+      }
+      // bending stiffness: resist sharp folds (one-sided, two spans so
+      // buckles become long paper-like arcs instead of tight zigzags)
+      for(const [span, kk, slack] of BENDS){
+        for(let i=0;i<n-span;i++){
+          const a = s.pts[i], c = s.pts[i+span];
+          const rest2 = (c.m - a.m)*slack;
+          let dx = c.x - a.x, dy = c.y - a.y;
+          let d = Math.hypot(dx, dy) || 0.0001;
+          if(d < rest2){
+            const diff = (d - rest2)/d*kk;
+            const cPinned = att && i+span === n-1;
+            if(cPinned){ a.x += dx*diff; a.y += dy*diff; }
+            else { a.x += dx*diff*0.5; a.y += dy*diff*0.5;
+                   c.x -= dx*diff*0.5; c.y -= dy*diff*0.5; }
+          }
+        }
+      }
+    }
+
+    // floor / pile collision
+    let still = true;
+    for(let i=0;i<n;i++){
+      const p = s.pts[i];
+      if(p.x < 8){ p.x = 8; p.px = p.x; }
+      else if(p.x > W-8){ p.x = W-8; p.px = p.x; }
+      const f = floorY - pileAt(p.x);
+      if(p.y > f){
+        p.y = f;
+        p.py = p.y;
+        p.px = p.x - (p.x - p.px)*0.2;    // friction
+      }
+      if(still){
+        const sx = p.x - p.px, sy = p.y - p.py;
+        if(sx*sx + sy*sy > 0.09) still = false;
+      }
+    }
+
+    // settle → sleep → deposit into the pile once
+    if(!att){
+      s.settleT = still ? s.settleT + 1 : 0;
+      if(s.settleT > 55){
+        s.asleep = true;
+        if(!s.deposited){ s.deposited = true; pileDeposit(s); }
+      }
+    }
+  }
+
+  // breaking point: how far past the paper's reach is the hand pulling?
+  // (pure geometry — hand-to-cutter distance vs material length — so a
+  // playful swing at full reach is safe, a pull beyond it tears)
+  if(grab && grab.s.attached){
+    const pts = grab.s.pts, n = pts.length;
+    const rest = n > 1 ? pts[n-1].m - pts[grab.i].m : 0;
+    if(grab.i < n-1 && rest >= 24){
+      const gx = ptr.x + grab.dx, gy = ptr.y + grab.dy;
+      const reach = Math.hypot(gx - grab.s.x0, gy - cutY);
+      const strain = reach/rest;
+      // hanging verlet chains rest ~15-20% stretched under gravity, so
+      // tension is judged relative to what it was the moment you pinched
+      if(grab.base === undefined) grab.base = Math.max(1, strain);
+      const rel = strain / grab.base;
+      const over = reach - rest*grab.base;   // absolute px of true overstretch
+      window.__strain = rel;   // debug: live tension readout
+      tearT = (rel > SNAP_SOFT && over > 30) ? tearT + 1 : 0;
+      if((rel > SNAP_HARD && over > 30) || tearT > 12) tearStrip(grab.s);
+    } else tearT = 0;
+  } else tearT = 0;
+}
+
+function nearStrip(s, x, y, r){
+  for(let i=0;i<s.pts.length;i+=3){
+    const p = s.pts[i];
+    if(Math.abs(p.x-x) < r && Math.abs(p.y-y) < r) return true;
+  }
+  return false;
+}
+
+/* ---------- rendering (parameterized so exports reuse the same path) ---------- */
+function draw(g = ctx, scale = dpr){
+  g.setTransform(scale,0,0,scale,0,0);
+  g.fillStyle = "#fbfbf9";
+  g.fillRect(0,0,W,H);
+
+  // soft shadows under every strip
+  g.save();
+  g.strokeStyle = "rgba(17,20,24,0.045)";
+  g.lineCap = "butt"; g.lineJoin = "round";
+  for(const s of strips){
+    if(s.pts.length < 2) continue;
+    g.lineWidth = s.w;
+    g.beginPath();
+    g.moveTo(s.pts[0].x + 4, s.pts[0].y + 6);
+    for(let i=1;i<s.pts.length;i++) g.lineTo(s.pts[i].x + 4, s.pts[i].y + 6);
+    g.stroke();
+  }
+  g.restore();
+
+  // strips: sleeping pile first, then falling, then hanging
+  for(const s of strips) if(s.asleep) drawStrip(s, g, scale);
+  for(const s of strips) if(!s.asleep && !s.attached) drawStrip(s, g, scale);
+  for(const s of strips) if(!s.asleep && s.attached) drawStrip(s, g, scale);
+
+  drawSheet(g);
+}
+
+function drawStrip(s, g = ctx, scale = dpr){
+  const n = s.pts.length;
+  if(n < 2) return;
+  const w = s.w + 0.35;                 // hairline overlap hides seams
+  let prevAng = null;
+  for(let i=n-2;i>=0;i--){
+    const b = s.pts[i+1];               // upper (larger m)
+    const a = s.pts[i];                 // lower
+    let dx = a.x - b.x, dy = a.y - b.y;
+    const len = Math.hypot(dx, dy);
+    if(len < 0.001) continue;
+    const ux = dx/len, uy = dy/len;
+    // local x axis ⟂ direction, local y along the strip
+    g.setTransform(scale*uy, -scale*ux, scale*ux, scale*uy, scale*b.x, scale*b.y);
+    const sy = (sheetH - b.m)*s.texScale;
+    const sh = (b.m - a.m)*s.texScale;
+    g.drawImage(s.tex, 0, sy, s.tex.width, Math.max(0.5,sh),
+                -w/2, -0.35, w, len + 0.7);
+
+    // glimpse of the paper's back as segments turn
+    const ang = Math.atan2(dx, dy);
+    if(prevAng !== null){
+      let bend = Math.abs(ang - prevAng);
+      if(bend > Math.PI) bend = 2*Math.PI - bend;
+      const vx = (a.x - a.px)/DT;
+      // stretched paper pales before it tears
+      const strainW = Math.max(0, (len/Math.max(0.001, b.m - a.m) - 1.05)*2);
+      const white = Math.min(0.34, Math.max(0, bend*2.1 + Math.abs(vx)*0.0003 - 0.08 + strainW));
+      if(white > 0.02){
+        g.globalAlpha = white;
+        g.fillStyle = "#faf9f5";
+        g.fillRect(-w/2, -0.35, w, len + 0.7);
+        g.globalAlpha = 1;
+      }
+    }
+    prevAng = ang;
+  }
+  g.setTransform(scale,0,0,scale,0,0);
+}
+
+function drawSheet(g = ctx){
+  if(!src || phase === "done") return;
+  const remain = sheetH - fed;
+  if(remain <= 0.5) return;
+  const bottom = phase === "preroll" ? preY : cutY;
+  const top = bottom - remain;
+  if(bottom < -2) return;
+
+  // paper shadow
+  g.save();
+  g.shadowColor = "rgba(17,20,24,0.16)";
+  g.shadowBlur = 16;
+  g.shadowOffsetY = 6;
+  g.fillStyle = "#fdfdfb";
+  g.fillRect(sheetX, top, sheetW, remain);
+  g.restore();
+
+  // visible portion of the source image (m runs bottom→top; src row 0 = sheet top)
+  const srcH = src.height*(remain/sheetH);
+  g.drawImage(src, 0, 0, src.width, srcH, sheetX, top, sheetW, remain);
+
+  // slot shadow where the paper enters the machine
+  if(phase !== "preroll"){
+    const grad = g.createLinearGradient(0, cutY-14, 0, cutY);
+    grad.addColorStop(0, "rgba(17,20,24,0)");
+    grad.addColorStop(1, "rgba(17,20,24,0.22)");
+    g.fillStyle = grad;
+    g.fillRect(sheetX, Math.max(top, cutY-14), sheetW, Math.min(14, remain));
+  }
+}
+
+/* ---------- sound (recorded shredder loop, off by default) ---------- */
+let sfx = null;
+let soundOn = false;
+function initAudio(){
+  if(sfx) return;
+  sfx = new Audio("audio/shredder.mp3");
+  sfx.loop = true;
+  sfx.volume = 0.9;
+}
+function audioFrame(){
+  if(!sfx) return;
+  const shouldPlay = soundOn && motorOn && phase === "shred";
+  if(shouldPlay && sfx.paused) sfx.play().catch(()=>{});
+  else if(!shouldPlay && !sfx.paused) sfx.pause();
+}
+
+/* ---------- UI ---------- */
+const bar = document.getElementById("bar");
+const sub = document.getElementById("sub");
+const counter = document.getElementById("counter");
+const hintEl = document.getElementById("hint");
+const toastEl = document.getElementById("toast");
+const btnAgain = document.getElementById("btnAgain");
+const btnSound = document.getElementById("btnSound");
+const btnImage = document.getElementById("btnImage");
+const pop = document.getElementById("pop");
+const popList = document.getElementById("popList");
+const upl = document.getElementById("upl");
+const dropEl = document.getElementById("drop");
+const btnSave = document.getElementById("btnSave");
+const stopTip = document.getElementById("stopTip");
+const panes = {
+  main: document.getElementById("paneMain"),
+  cam:  document.getElementById("paneCam"),
+};
+const camVid = document.getElementById("camVid");
+let camStream = null;
+
+function showPane(name){
+  for(const k in panes) panes[k].hidden = k !== name;
+  if(name !== "cam") stopCam();
+}
+function closePop(){
+  pop.classList.remove("open");
+  showPane("main");
+}
+function stopCam(){
+  if(camStream){
+    for(const tr of camStream.getTracks()) tr.stop();
+    camStream = null;
+  }
+  camVid.srcObject = null;
+}
+
+let hintTimer = null;
+function setHint(msg){
+  hintEl.textContent = msg;
+  hintEl.classList.add("show");
+  clearTimeout(hintTimer);
+  hintTimer = setTimeout(()=>hintEl.classList.remove("show"), 9000);
+}
+let toastTimer = null;
+function toastMsg(msg, ms){
+  toastEl.textContent = msg;
+  toastEl.classList.add("show");
+  clearTimeout(toastTimer);
+  if(ms) toastTimer = setTimeout(()=>toastEl.classList.remove("show"), ms);
+}
+
+function updateHUD(){
+  const pct = sheetH ? Math.round(fed/sheetH*100) : 0;
+  bar.style.width = pct + "%";
+  counter.textContent = pct + "% shredded";
+  sub.textContent = phase === "done" ? "· shredded"
+                  : motorOn ? "· running" : "· stopped";
+}
+
+// cursor tip while hovering the un-shredded sheet: you can stop the machine
+function updateStopTip(){
+  let show = false;
+  if(src && phase !== "done" && !pressed && ptr.active){
+    const remain = sheetH - fed;
+    const bottom = phase === "preroll" ? preY : cutY;
+    const top = bottom - remain;
+    show = ptr.x >= sheetX && ptr.x <= sheetX + sheetW &&
+           ptr.y >= top && ptr.y <= bottom;
+  }
+  if(show){
+    stopTip.textContent = motorOn ? "stop the shreader" : "start the shreader";
+    stopTip.style.left = Math.min(W - 150, ptr.x + 16) + "px";
+    stopTip.style.top = Math.min(H - 40, ptr.y + 20) + "px";
+  }
+  stopTip.classList.toggle("show", show);
+}
+
+function onShredDone(){
+  btnAgain.classList.remove("hidden");
+  setHint("sweep through the pieces · drop another image in");
+}
+
+function toggleMotor(){
+  if(phase === "done") return;
+  motorOn = !motorOn;
+  hintEl.classList.remove("show");
+  updateHUD();
+}
+
+/* one pointer, three behaviours:
+   quick click = motor toggle · press on a strip = grab · hold on space = blow */
+let downX=0, downY=0, moved=false;
+window.addEventListener("pointerdown", e=>{
+  if(e.target.closest("#pills") || e.target.closest("#pop")) return;
+  downX = e.clientX; downY = e.clientY; moved = false;
+  downT = performance.now(); pressed = true;
+  ptr.active = true; ptr.x = e.clientX; ptr.y = e.clientY;
+  if(pop.classList.contains("open")) closePop();
+  grab = hitStrip(e.clientX, e.clientY, GRAB_R);
+  tearT = 0;
+  if(grab){ grab.s.asleep = false; grab.s.settleT = 0; }
+});
+window.addEventListener("pointermove", e=>{
+  ptr.x = e.clientX; ptr.y = e.clientY;
+  ptr.active = true;
+  if(Math.hypot(e.clientX-downX, e.clientY-downY) > 7) moved = true;
+});
+function releasePointer(){
+  pressed = false; blowing = false;
+  if(grab){
+    // toss: the pinched point leaves with the hand's velocity
+    const p = grab.s.pts[grab.i];
+    if(p){ p.px = p.x - ptr.vx*DT; p.py = p.y - ptr.vy*DT; }
+    grab.s.settleT = 0;
+    grab = null;
+  }
+}
+window.addEventListener("pointerup", e=>{
+  const quick = performance.now() - downT < 250;
+  releasePointer();
+  if(e.target.closest("#pills") || e.target.closest("#pop")) return;
+  if(!moved && quick && Math.hypot(e.clientX-downX, e.clientY-downY) <= 7) toggleMotor();
+});
+window.addEventListener("pointercancel", releasePointer);
+window.addEventListener("pointerleave", ()=>{ releasePointer(); ptr.active=false; ptr.x=-9999; ptr.y=-9999; });
+window.addEventListener("keydown", e=>{
+  if(e.code === "Space"){ e.preventDefault(); toggleMotor(); }
+});
+
+btnAgain.addEventListener("click", restart);
+btnSound.addEventListener("click", ()=>{
+  initAudio();
+  soundOn = !soundOn;
+  btnSound.classList.toggle("on", soundOn);
+});
+btnImage.addEventListener("click", e=>{
+  e.stopPropagation();
+  if(pop.classList.contains("open")) closePop();
+  else { showPane("main"); pop.classList.add("open"); }
+});
+
+function refreshPopover(){
+  popList.innerHTML = "";
+  for(const smp of SAMPLES){
+    const row = document.createElement("div");
+    row.className = "row" + (smp.id === currentId ? " current" : "");
+    row.innerHTML = `<img src="${smp.file}" alt="">
+      <div><div class="t">${smp.name}</div><div class="s">sample</div></div>`;
+    row.addEventListener("click", ()=>{
+      closePop();
+      loadImage(smp.file, smp.name, smp.id);
+    });
+    popList.appendChild(row);
+  }
+}
+document.getElementById("rowUpload").addEventListener("click", ()=>upl.click());
+upl.addEventListener("change", ()=>{
+  const f = upl.files && upl.files[0];
+  if(f) readFile(f);
+  upl.value = "";
+});
+function readFile(f){
+  if(!f.type.startsWith("image/")){ toastMsg("that's not an image", 2400); return; }
+  const r = new FileReader();
+  r.onload = ()=>{ closePop(); loadImage(r.result, f.name.replace(/\.[^.]+$/,""), null); };
+  r.onerror = ()=>toastMsg("couldn't read that image", 2400);
+  r.readAsDataURL(f);
+}
+
+/* drag & drop */
+let dragDepth = 0;
+window.addEventListener("dragenter", e=>{ e.preventDefault(); dragDepth++; dropEl.classList.add("show"); });
+window.addEventListener("dragover", e=>e.preventDefault());
+window.addEventListener("dragleave", e=>{ if(--dragDepth <= 0){ dragDepth=0; dropEl.classList.remove("show"); } });
+window.addEventListener("drop", e=>{
+  e.preventDefault(); dragDepth = 0; dropEl.classList.remove("show");
+  const f = e.dataTransfer.files && e.dataTransfer.files[0];
+  if(f) readFile(f);
+});
+
+/* camera */
+document.getElementById("rowCam").addEventListener("click", ()=>{
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    toastMsg("camera not available", 2400); return;
+  }
+  showPane("cam");
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } })
+    .then(stream => { camStream = stream; camVid.srcObject = stream; })
+    .catch(() => { toastMsg("camera not available", 2400); showPane("main"); });
+});
+document.getElementById("camBack").addEventListener("click", ()=>showPane("main"));
+document.getElementById("camShred").addEventListener("click", ()=>{
+  const vw = camVid.videoWidth, vh = camVid.videoHeight;
+  if(!vw || !vh){ toastMsg("camera not ready yet", 2000); return; }
+  // centre-crop to 3:4, mirrored like the preview
+  let sw = vw, sh = vh;
+  if(vw/vh > 0.75) sw = vh*0.75; else sh = vw/0.75;
+  const sx = (vw - sw)/2, syv = (vh - sh)/2;
+  const c = document.createElement("canvas");
+  c.width = 900; c.height = 1200;
+  const g = c.getContext("2d");
+  g.translate(900, 0); g.scale(-1, 1);
+  g.drawImage(camVid, sx, syv, sw, sh, 0, 0, 900, 1200);
+  const url = c.toDataURL("image/png");
+  closePop();
+  loadImage(url, "Selfie", null);
+});
+
+/* export PNG */
+btnSave.addEventListener("click", ()=>{
+  const scale = 2;
+  const c = document.createElement("canvas");
+  c.width = Math.round(W*scale); c.height = Math.round(H*scale);
+  draw(c.getContext("2d"), scale);
+  const a = document.createElement("a");
+  const slug = (srcName || "art").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "art";
+  a.download = "shreader-" + slug + ".png";
+  a.href = c.toDataURL("image/png");
+  a.click();
+  toastMsg("✓ saved", 1800);
+});
+
+/* ---------- main loop ---------- */
+let last = performance.now(), acc = 0;
+function frame(now){
+  acc += Math.min(0.1, (now - last)/1000);
+  last = now;
+  let steps = 0;
+  while(acc >= DT && steps < 3){ step(); acc -= DT; steps++; }
+  if(steps === 3) acc = 0;
+  draw();
+  updateHUD();
+  updateStopTip();
+  audioFrame();
+  requestAnimationFrame(frame);
+}
+
+/* ---------- debug / verification hooks ---------- */
+window.SHREADER = {
+  toggle: toggleMotor,
+  restart,
+  get state(){ return { phase, motorOn, fed, sheetH, strips: strips.length,
+    asleep: strips.filter(s=>s.asleep).length }; },
+  get raw(){ return strips; },
+  get grabInfo(){ return grab ? { i: grab.i, x0: grab.s.x0, base: grab.base,
+    attached: grab.s.attached, nPts: grab.s.pts.length } : null; },
+  load: loadImage,
+  // jump to a shred fraction with strips hanging straight
+  skip(frac){
+    if(!src) return;
+    if(phase === "preroll"){ preY = cutY; phase = "shred"; }
+    fed = Math.min(sheetH, Math.max(fed, frac*sheetH));
+    for(const s of strips){
+      if(!s.attached) continue;
+      s.pts = [];
+      for(let m=0; m<=fed-SEG; m+=SEG){
+        const y = Math.min(cutY + (fed - m), floorY - pileAt(s.x0));
+        s.pts.push(mkPt(s.x0, y, m));
+      }
+      s.pts.push(mkPt(s.x0, cutY, fed));
+    }
+    if(fed >= sheetH){ phase = "done"; doneAt = t; onShredDone(); }
+  },
+  // advance the sim without rendering
+  ff(secs){
+    const n = Math.round(secs/DT);
+    for(let i=0;i<n;i++) step();
+  },
+};
+
+/* ---------- go ---------- */
+resize();
+window.addEventListener("resize", resize);
+refreshPopover();
+loadImage(SAMPLES[0].file, SAMPLES[0].name, SAMPLES[0].id);
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
