@@ -148,9 +148,9 @@ html,body{height:100%;overflow:hidden;background:var(--bg);
    ============================================================ */
 
 const SAMPLES = [
-  { id:"rings", name:"Rings",  file:"samples/rings.svg" },
-  { id:"sun",   name:"Sun",    file:"samples/sun.svg"   },
-  { id:"arcs",  name:"Arcs",   file:"samples/arcs.svg"  },
+  { id:"shreader", name:"Shreader", file:"samples/Shreader.jpg" },
+  { id:"fun",      name:"Fun",      file:"samples/fun.jpg"      },
+  { id:"rubbish",  name:"Rubbish",  file:"samples/rubbish.jpg"  },
 ];
 
 /* ---------- tuning ---------- */
@@ -1006,7 +1006,8 @@ window.SHREADER = {
 resize();
 window.addEventListener("resize", resize);
 refreshPopover();
-loadImage(SAMPLES[0].file, SAMPLES[0].name, SAMPLES[0].id);
+const first = SAMPLES[Math.floor(Math.random()*SAMPLES.length)];
+loadImage(first.file, first.name, first.id);
 requestAnimationFrame(frame);
 </script>
 </body>
